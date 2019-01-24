@@ -2,18 +2,19 @@ import tensorflow as tf
 import tensorflow.keras.layers as layers
 
 
-def gen_fc_mnist(use_bn=False, h_act=tf.nn.leaky_relu):
+def gen_fc_mnist(use_bn=False, h_act=tf.nn.leaky_relu, final_act=tf.nn.sigmoid):
     h_act_internal = None if use_bn else h_act
     seq = [layers.Dense(256, h_act_internal),
            layers.Dense(512, h_act_internal),
            layers.Dense(1024, h_act_internal),
-           layers.Dense(784, tf.nn.sigmoid)]
+           layers.Dense(1024, final_act)]
     if use_bn:
         seq = add_bn(seq, h_act)
     return tf.keras.Sequential(seq)
 
 
-def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu):
+def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu,
+                   final_act=tf.nn.sigmoid):
     h_act_internal = None if use_bn else h_act
     seq = [layers.Reshape((1, 1, -1)),
            layers.Conv2DTranspose(64, 3, 2, padding="same",
@@ -25,7 +26,7 @@ def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu):
            layers.Conv2DTranspose(32, 3, 2, padding="same",
                                   activation=h_act_internal),
            layers.Conv2DTranspose(1, 3, 2, padding="same",
-                                  activation=tf.nn.sigmoid),
+                                  activation=final_act),
            layers.Flatten()]
     if use_bn:
         seq = add_bn(seq, h_act, up_to=-2)
