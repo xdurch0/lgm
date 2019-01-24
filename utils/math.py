@@ -47,6 +47,7 @@ def compute_mmd(x, y, sigma_sqr=None):
 
     Returns:
         Scalar MMD value.
+
     """
     if sigma_sqr is None:
         sigma_sqr = tf.cast(x.shape.as_list()[1], tf.float32)
