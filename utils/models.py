@@ -33,30 +33,41 @@ def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu,
     return tf.keras.Sequential(seq)
 
 
-def enc_fc_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu):
+def enc_fc_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
     h_act_internal = None if use_bn else h_act
-    seq = [layers.Dense(512, h_act_internal),
-           layers.Dense(256, h_act_internal),
-           layers.Dense(128, h_act_internal),
-           layers.Dense(final_dim)]
+    const = (lambda v: tf.clip_by_value(v, -clip, clip)) if clip else None
+    seq = [layers.Dense(512, h_act_internal, kernel_constraint=const,
+                        bias_constraint=const),
+           layers.Dense(256, h_act_internal, kernel_constraint=const,
+                        bias_constraint=const),
+           layers.Dense(128, h_act_internal, kernel_constraint=const,
+                        bias_constraint=const),
+           layers.Dense(final_dim, kernel_constraint=const,
+                        bias_constraint=const)]
     if use_bn:
         seq = add_bn(seq, h_act)
     return tf.keras.Sequential(seq)
 
 
-def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu):
+def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
     h_act_internal = None if use_bn else h_act
+    const = (lambda v: tf.clip_by_value(v, -clip, clip)) if clip else None
     seq = [layers.Reshape((32, 32, 1)),
-           layers.Conv2D(32, 3, padding="same", activation=h_act_internal),
+           layers.Conv2D(32, 3, padding="same", activation=h_act_internal,
+                         kernel_constraint=const, bias_constraint=const),
            layers.AveragePooling2D(padding="same"),
-           layers.Conv2D(64, 3, padding="same", activation=h_act_internal),
+           layers.Conv2D(64, 3, padding="same", activation=h_act_internal,
+                         kernel_constraint=const, bias_constraint=const),
            layers.AveragePooling2D(padding="same"),
-           layers.Conv2D(128, 3, padding="same", activation=h_act_internal),
+           layers.Conv2D(128, 3, padding="same", activation=h_act_internal,
+                         kernel_constraint=const, bias_constraint=const),
            layers.AveragePooling2D(padding="same"),
-           layers.Conv2D(256, 3, padding="same", activation=h_act_internal),
+           layers.Conv2D(256, 3, padding="same", activation=h_act_internal,
+                         kernel_constraint=const, bias_constraint=const),
            layers.AveragePooling2D(padding="same"),
            layers.Flatten(),
-           layers.Dense(final_dim)]
+           layers.Dense(final_dim, kernel_constraint=const,
+                        bias_constraint=const)]
     if use_bn:
         seq = add_bn(seq, h_act)
     return tf.keras.Sequential(seq)
