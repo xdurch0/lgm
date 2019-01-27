@@ -77,3 +77,18 @@ def deserves_batchnorm(layer):
     return (isinstance(layer, layers.Dense) or
             isinstance(layer, layers.Conv2D) or
             isinstance(layer, layers.Conv2DTranspose))
+
+
+def wrap_sigmoid(model):
+    """Appends sigmoid activation function to a model.
+
+    Useful for models that output logits e.g. for cross-entropy loss, but later
+    you want to look at the probabilities.
+
+    Parameters:
+        model: Callable, e.g. Keras model, taking a single argument.
+
+    Returns:
+        Callable that applies model and then a sigmoid to the output.
+    """
+    return lambda x: tf.nn.sigmoid(model(x))

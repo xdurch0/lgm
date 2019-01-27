@@ -19,7 +19,7 @@ def random_samples(model, noise_fn, img_dims=(32, 32), num=10):
         imshow(sample, img_dims)
 
 
-def random_sample_grid(model, noise_fn, img_dims=(32, 32), grid_dims=(8, 8),
+def random_sample_grid(model, noise_fn, img_dims=(32, 32), grid_dims=(4, 4),
                        show=True):
     """Construct a grid of some random samples in a single image.
 
