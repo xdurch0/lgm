@@ -3,31 +3,28 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-def random_samples(model, noise_fn, img_dims=(32, 32), num=10):
+def random_samples(model, noise_fn, num=10):
     """Generate and plot some random samples.
 
     Parameters:
         model: Callable that produces images, e.g. Keras Sequential.
         noise_fn: Callable that produces a noise batch, should take (only) batch
                   size as argument.
-        img_dims: Target dimensions of each image.
         num: How many samples to plot.
 
     """
     samples = model(noise_fn(num))
     for sample in samples:
-        imshow(sample, img_dims)
+        imshow(sample)
 
 
-def random_sample_grid(model, noise_fn, img_dims=(32, 32), grid_dims=(4, 4),
-                       show=True):
+def random_sample_grid(model, noise_fn, grid_dims=(4, 4), show=True):
     """Construct a grid of some random samples in a single image.
 
     Parameters:
         model: Callable that produces images, e.g. Keras Sequential.
         noise_fn: Callable that produces a noise batch, should take (only) batch
                   size as argument.
-        img_dims: Target dimensions of each image.
         grid_dims: Desired grid dimensions, also specifying how many samples to
               generate.
         show: If true, plot the grid.
@@ -40,7 +37,6 @@ def random_sample_grid(model, noise_fn, img_dims=(32, 32), grid_dims=(4, 4),
         raise ValueError("Grid dimension needs to be 2D.")
     to_gen = np.prod(grid_dims)
     samples = model(noise_fn(to_gen))
-    samples = [sample.numpy().reshape(img_dims) for sample in samples]
 
     grid = img_grid_npy(samples, grid_dims[0], grid_dims[1], normalize=False)
     if show:
@@ -48,14 +44,12 @@ def random_sample_grid(model, noise_fn, img_dims=(32, 32), grid_dims=(4, 4),
     return grid
 
 
-def interpolate(source, target, img_dims=(32, 32), granularity=20, gen=None,
-                method="linear"):
+def interpolate(source, target, granularity=20, gen=None, method="linear"):
     """Interpolate between two images, showing intermediate results.
 
     Parameters:
         source: Starting point.
         target: End point.
-        img_dims: If given, reshape...
         granularity: How many steps to take from source to target.
         gen: If given, interpolations are assumed to be codes that need to be
              mapped to image space first; gen should be a callable that does
@@ -76,21 +70,16 @@ def interpolate(source, target, img_dims=(32, 32), granularity=20, gen=None,
                              "{}".format(method))
         if gen:
             interp = gen(interp[tf.newaxis, :])
-        imshow(interp, img_dims)
+        imshow(interp)
 
 
-def imshow(img, target_dims=None):
+def imshow(img):
     """Wrapper for imshow.
 
     Parameters:
         img: Image to plot. Should be values between 0 and 1.
-        target_dims: If None, image is assumed to have proper dimensions. If
-                     given, should be a tuple that the image will be reshaped
-                     to.
 
     """
-    if target_dims is not None:
-        img = img.numpy().reshape(target_dims)
     plt.imshow(img, cmap="Greys_r", vmin=0, vmax=1)
     plt.show()
 
@@ -121,26 +110,32 @@ def img_grid_npy(imgs, rows, cols, border_val=None, normalize=True):
 
         imgs = [norm(img) for img in imgs]
     imgs = np.asarray(imgs)
+    if imgs.ndim == 4:
+        multi_channel = True
+    else:
+        multi_channel = False
 
     if border_val is None:
         border_val = imgs.max()
 
     # make border things
-    col_border = np.full([imgs[0].shape[0], 1], border_val)
+    col_border = np.full([imgs[0].shape[0], 1] + ([3] if multi_channel else []),
+                         border_val)
 
     # first create the rows
     def make_row(ind):
         base = imgs[ind:(ind + cols)]
-        borders = [col_border] * len(base)
-        interleaved = [elem for pair in zip(base, borders) for
-                       elem in pair][:-1]  # remove last border
-        return interleaved
+        rborders = [col_border] * len(base)
+        rinterleaved = [elem for pair in zip(base, rborders) for
+                        elem in pair][:-1]  # remove last border
+        return rinterleaved
 
     grid_rows = [np.concatenate(make_row(ind), axis=1) for
                  ind in range(0, len(imgs), cols)]
 
     # then stack them
-    row_border = np.full([1, grid_rows[0].shape[1]], border_val)
+    row_border = np.full([1, grid_rows[0].shape[1]] +
+                         ([3] if multi_channel else []), border_val)
     borders = [row_border] * len(grid_rows)
     interleaved = [elem for pair in zip(grid_rows, borders) for
                    elem in pair][:-1]

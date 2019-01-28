@@ -20,7 +20,8 @@ def make_mnist_iter(batch_size, train=True, to32=True):
         Initializable iterator; image placeholder; label placeholder.
 
     """
-    pl_imgs = tf.placeholder(tf.float32, [None, 32*32 if to32 else 28*28])
+    img_shape = [None, 32, 32, 1] if to32 else [None, 28, 28, 1]
+    pl_imgs = tf.placeholder(tf.float32, img_shape)
     pl_lbls = tf.placeholder(tf.int32, [None])
     data = tf.data.Dataset.from_tensor_slices((pl_imgs, pl_lbls))
     if train:
@@ -86,12 +87,11 @@ def preprocess_mnist(base_path, normalize=True, binarize=False, to32=True):
 
     """
     imgs = np.load(base_path + "_imgs.npy")
-    lbls = np.load(base_path + "_lbls.npy")
-    lbls = lbls.astype(np.int32)
+    lbls = np.load(base_path + "_lbls.npy").astype(np.int32)
+
+    imgs = imgs.reshape((-1, 28, 28, 1))
     if to32:
-        imgs = imgs.reshape((-1, 28, 28))
-        imgs = np.pad(imgs, ((0, 0), (2, 2), (2, 2)), "constant")
-        imgs = imgs.reshape((-1, 32*32))
+        imgs = np.pad(imgs, ((0, 0), (2, 2), (2, 2), (0, 0)), "constant")
     if normalize:
         imgs = imgs.astype(np.float32) / 255
     if binarize:
@@ -130,7 +130,6 @@ def svhn_eager(which, batch_size, normalize=True, binarize=False, train=True):
                              "data.")
         imgs = np.around(imgs)
 
-    imgs = np.reshape(imgs, [imgs.shape[0], -1])
     data = tf.data.Dataset.from_tensor_slices((imgs, lbls))
     if train:
         data = data.apply(tf.data.experimental.shuffle_and_repeat(len(imgs)))
