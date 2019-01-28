@@ -50,11 +50,10 @@ def enc_fc_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
     return tf.keras.Sequential(seq)
 
 
-def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, channels=1,
-                   clip=None):
+def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
     h_act_internal = None if use_bn else h_act
     const = (lambda v: tf.clip_by_value(v, -clip, clip)) if clip else None
-    seq = [layers.Reshape((32, 32, channels)),
+    seq = [layers.Reshape((32, 32, -1)),
            layers.Conv2D(32, 3, padding="same", activation=h_act_internal,
                          kernel_constraint=const, bias_constraint=const),
            layers.AveragePooling2D(padding="same"),
