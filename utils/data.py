@@ -165,7 +165,9 @@ def mnist_tfr(array_path, target_path, to32=True):
         to32: If true, pad images to 32x32.
 
     """
+    print("Building MNIST TFR...")
     for subset in ["train", "test"]:
+        print(subset + "...")
         lbls = np.load(os.path.join(
             array_path, "mnist_" + subset + "_lbls.npy")).astype(np.int32)[:, np.newaxis]
         imgs = np.load(os.path.join(
@@ -185,7 +187,9 @@ def svhn_tfr(mat_path, target_path):
                      give file ending here.
 
     """
+    print("Building SVHN TFR...")
     for subset in ["train", "extra", "test"]:
+        print(subset + "...")
         matdict = scipy.io.loadmat(os.path.join(mat_path,
                                                 subset + "_32x32.mat"))
         imgs = np.transpose(matdict["X"], [3, 0, 1, 2]).astype(np.float32) / 255.
@@ -227,13 +231,11 @@ def parse_img_label_tfr(example_proto, shape):
             tf.cast(parsed_features["lbl"], tf.int32))
 
 
-def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0, cache=False):
+def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):
     data = tf.data.TFRecordDataset(tfr_paths)
     if shufrep:
         data = data.apply(tf.data.experimental.shuffle_and_repeat(shufrep))
     data = data.apply(tf.data.experimental.map_and_batch(
         map_func=map_func, batch_size=batch_size))
     data = data.prefetch(1)
-    if cache:
-        data = data.cache()
     return data
