@@ -2,19 +2,20 @@ import tensorflow as tf
 import tensorflow.keras.layers as layers
 
 
-def gen_fc_mnist(use_bn=False, h_act=tf.nn.leaky_relu, final_act=tf.nn.sigmoid):
+def gen_fc_mnist(use_bn=False, h_act=tf.nn.leaky_relu, final_act=tf.nn.sigmoid,
+                 channels=1):
     h_act_internal = None if use_bn else h_act
     seq = [layers.Dense(256, h_act_internal),
            layers.Dense(512, h_act_internal),
            layers.Dense(1024, h_act_internal),
-           layers.Dense(1024, final_act)]
+           layers.Dense(32*32*channels, final_act)]
     if use_bn:
         seq = add_bn(seq, h_act)
     return tf.keras.Sequential(seq)
 
 
 def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu,
-                   final_act=tf.nn.sigmoid):
+                   final_act=tf.nn.sigmoid, channels=1):
     h_act_internal = None if use_bn else h_act
     seq = [layers.Reshape((1, 1, -1)),
            layers.Conv2DTranspose(256, 4, 2, padding="same",
@@ -25,7 +26,7 @@ def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu,
                                   activation=h_act_internal),
            layers.Conv2DTranspose(32, 4, 2, padding="same",
                                   activation=h_act_internal),
-           layers.Conv2DTranspose(1, 4, 2, padding="same",
+           layers.Conv2DTranspose(channels, 4, 2, padding="same",
                                   activation=final_act),
            layers.Flatten()]
     if use_bn:
@@ -49,10 +50,11 @@ def enc_fc_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
     return tf.keras.Sequential(seq)
 
 
-def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
+def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, channels=1,
+                   clip=None):
     h_act_internal = None if use_bn else h_act
     const = (lambda v: tf.clip_by_value(v, -clip, clip)) if clip else None
-    seq = [layers.Reshape((32, 32, 1)),
+    seq = [layers.Reshape((32, 32, channels)),
            layers.Conv2D(32, 3, padding="same", activation=h_act_internal,
                          kernel_constraint=const, bias_constraint=const),
            layers.AveragePooling2D(padding="same"),

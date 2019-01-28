@@ -109,13 +109,16 @@ def svhn_eager(which, batch_size, normalize=True, binarize=False, train=True):
     if which == "train" or which == "extra":
         matdict = scipy.io.loadmat("data/train_32x32.mat")
         imgs = np.transpose(matdict["X"], [3, 0, 1, 2])
+        lbls = matdict["y"].astype(np.int32)
         if which == "extra":
             matdict = scipy.io.loadmat("data/extra_32x32.mat")
             imgs = np.concatenate(
                 (imgs, np.transpose(matdict["X"], [3, 0, 1, 2])))
+            lbls = np.concatenate((lbls, matdict["y"].astype(np.int32)))
     elif which == "test":
         matdict = scipy.io.loadmat("data/test_32x32.mat")
         imgs = np.transpose(matdict["X"], [3, 0, 1, 2])
+        lbls = matdict["y"].astype(np.int32)
     else:
         raise ValueError("Invalid subset specified!")
 
@@ -127,7 +130,8 @@ def svhn_eager(which, batch_size, normalize=True, binarize=False, train=True):
                              "data.")
         imgs = np.around(imgs)
 
-    data = tf.data.Dataset.from_tensor_slices(imgs)
+    imgs = np.reshape(imgs, [imgs.shape[0], -1])
+    data = tf.data.Dataset.from_tensor_slices((imgs, lbls))
     if train:
         data = data.apply(tf.data.experimental.shuffle_and_repeat(len(imgs)))
     data = data.batch(batch_size)
