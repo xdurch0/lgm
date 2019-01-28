@@ -1,7 +1,11 @@
 import tensorflow as tf
 import numpy as np
+import scipy.io
 
 
+################################################################################
+# MNIST
+################################################################################
 def make_mnist_iter(batch_size, train=True, to32=True):
     """Make initializable iterator for MNIST.
 
@@ -63,7 +67,7 @@ def mnist_eager(base_path, batch_size, train=True, normalize=True,
     imgs, lbls = preprocess_mnist(base_path, normalize, binarize, to32)
     data = tf.data.Dataset.from_tensor_slices((imgs, lbls))
     if train:
-        data = data.apply(tf.data.experimental.shuffle_and_repeat(60000))
+        data = data.apply(tf.data.experimental.shuffle_and_repeat(len(imgs)))
     data = data.batch(batch_size)
     return data
 
@@ -96,3 +100,35 @@ def preprocess_mnist(base_path, normalize=True, binarize=False, to32=True):
                              "data.")
         imgs = np.around(imgs)
     return imgs, lbls
+
+
+################################################################################
+# SVHN
+################################################################################
+def svhn_eager(which, batch_size, normalize=True, binarize=False, train=True):
+    if which == "train" or which == "extra":
+        matdict = scipy.io.loadmat("data/train_32x32.mat")
+        imgs = np.transpose(matdict["X"], [3, 0, 1, 2])
+        if which == "extra":
+            matdict = scipy.io.loadmat("data/extra_32x32.mat")
+            imgs = np.concatenate(
+                (imgs, np.transpose(matdict["X"], [3, 0, 1, 2])))
+    elif which == "test":
+        matdict = scipy.io.loadmat("data/test_32x32.mat")
+        imgs = np.transpose(matdict["X"], [3, 0, 1, 2])
+    else:
+        raise ValueError("Invalid subset specified!")
+
+    if normalize:
+        imgs = imgs.astype(np.float32) / 255
+    if binarize:
+        if not normalize:
+            raise ValueError("Binarization not implemented for unnormalized "
+                             "data.")
+        imgs = np.around(imgs)
+
+    data = tf.data.Dataset.from_tensor_slices(imgs)
+    if train:
+        data = data.apply(tf.data.experimental.shuffle_and_repeat(len(imgs)))
+    data = data.batch(batch_size)
+    return data
