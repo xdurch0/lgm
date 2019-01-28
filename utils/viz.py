@@ -13,12 +13,12 @@ def random_samples(model, noise_fn, num=10):
         num: How many samples to plot.
 
     """
-    samples = model(noise_fn(num))
+    samples = model(noise_fn(num)).numpy()
     for sample in samples:
         imshow(sample)
 
 
-def random_sample_grid(model, noise_fn, grid_dims=(4, 4), show=True):
+def random_sample_grid(model, noise_fn, grid_dims=(7, 7), show=True):
     """Construct a grid of some random samples in a single image.
 
     Parameters:
@@ -36,7 +36,7 @@ def random_sample_grid(model, noise_fn, grid_dims=(4, 4), show=True):
     if len(grid_dims) != 2:
         raise ValueError("Grid dimension needs to be 2D.")
     to_gen = np.prod(grid_dims)
-    samples = model(noise_fn(to_gen))
+    samples = model(noise_fn(to_gen)).numpy()
 
     grid = img_grid_npy(samples, grid_dims[0], grid_dims[1], normalize=False)
     if show:
@@ -80,7 +80,7 @@ def imshow(img):
         img: Image to plot. Should be values between 0 and 1.
 
     """
-    plt.imshow(img, cmap="Greys_r", vmin=0, vmax=1)
+    plt.imshow(np.squeeze(img), cmap="Greys_r", vmin=0, vmax=1)
     plt.show()
 
 
@@ -111,15 +111,15 @@ def img_grid_npy(imgs, rows, cols, border_val=None, normalize=True):
         imgs = [norm(img) for img in imgs]
     imgs = np.asarray(imgs)
     if imgs.ndim == 4:
-        multi_channel = True
+        multi_channel = [imgs.shape[-1]]
     else:
-        multi_channel = False
+        multi_channel = []
 
     if border_val is None:
         border_val = imgs.max()
 
     # make border things
-    col_border = np.full([imgs[0].shape[0], 1] + ([3] if multi_channel else []),
+    col_border = np.full([imgs[0].shape[0], 1] + multi_channel,
                          border_val)
 
     # first create the rows
@@ -134,8 +134,7 @@ def img_grid_npy(imgs, rows, cols, border_val=None, normalize=True):
                  ind in range(0, len(imgs), cols)]
 
     # then stack them
-    row_border = np.full([1, grid_rows[0].shape[1]] +
-                         ([3] if multi_channel else []), border_val)
+    row_border = np.full([1, grid_rows[0].shape[1]] + multi_channel, border_val)
     borders = [row_border] * len(grid_rows)
     interleaved = [elem for pair in zip(grid_rows, borders) for
                    elem in pair][:-1]
