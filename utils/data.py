@@ -97,7 +97,7 @@ def cifar100_tfr(pickle_path, target_path):
         with open(os.path.join(pickle_path, batch_name), "rb") as pkl:
             data_dict = pickle.load(pkl, encoding="bytes")
         imgs = np.asarray(data_dict[b"data"])
-        lbls = np.asarray(data_dict[b"labels"])
+        lbls = np.asarray(data_dict[b"fine_labels"])
         imgs = imgs.reshape([-1, 3, 32, 32]).transpose([0, 2, 3, 1])
         lbls = lbls[:, np.newaxis]
         return imgs, lbls

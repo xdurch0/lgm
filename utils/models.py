@@ -2,6 +2,9 @@ import tensorflow as tf
 import tensorflow.keras.layers as layers
 
 
+################################################################################
+# Architectures
+################################################################################
 def gen_fc_mnist(use_bn=False, h_act=tf.nn.leaky_relu, final_act=tf.nn.sigmoid,
                  channels=1):
     h_act_internal = None if use_bn else h_act
@@ -29,6 +32,30 @@ def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu,
                                   activation=h_act_internal),
            layers.Conv2DTranspose(channels, 4, 2, padding="same",
                                   activation=final_act)]
+    if use_bn:
+        seq = add_bn(seq, h_act)
+    return tf.keras.Sequential(seq)
+
+
+def gen_conv_mnist_nn(use_bn=False, h_act=tf.nn.leaky_relu,
+                      final_act=tf.nn.sigmoid, channels=1):
+    def upsample2(images):
+        new_size = 2*tf.shape(images)[1:3]
+        return tf.image.resize_nearest_neighbor(images, new_size)
+
+    h_act_internal = None if use_bn else h_act
+    seq = [layers.Reshape((1, 1, -1)),
+           layers.Lambda(upsample2),
+           layers.Conv2D(256, 4, padding="same", activation=h_act_internal),
+           layers.Lambda(upsample2),
+           layers.Conv2D(128, 4, padding="same", activation=h_act_internal),
+           layers.Lambda(upsample2),
+           layers.Conv2D(64, 4, padding="same", activation=h_act_internal),
+           layers.Lambda(upsample2),
+           layers.Conv2D(32, 4, padding="same", activation=h_act_internal),
+           layers.Lambda(upsample2),
+           layers.Conv2D(channels, 4, padding="same", activation=final_act),
+           ]
     if use_bn:
         seq = add_bn(seq, h_act)
     return tf.keras.Sequential(seq)
@@ -74,6 +101,9 @@ def enc_conv_mnist(final_dim, use_bn=False, h_act=tf.nn.leaky_relu, clip=None):
     return tf.keras.Sequential(seq)
 
 
+################################################################################
+# Helpers
+################################################################################
 def add_bn(layer_seq, h_act, up_to=-1):
     """Apply batchnorm to a sequence of layers.
 
@@ -119,3 +149,23 @@ def wrap_sigmoid(model):
         Callable that applies model and then a sigmoid to the output.
     """
     return lambda x: tf.nn.sigmoid(model(x))
+
+
+def model_up_to(model, up_to):
+    """Applies only the first n layers of a model.
+
+    Parameters:
+        model: Keras model with a layers attribute.
+        up_to: Int, how many layers of the model should be applied. E.g.
+               passing 1 will apply only the first layer (index 0). Basically
+               this is the index of the first layer that is excluded.
+
+    Returns:
+        Callable that only applies the requested layers.
+    """
+    def partial_model(inp):
+        for ind in range(up_to):
+            inp = model.layers[ind](inp)
+        return inp
+
+    return partial_model
