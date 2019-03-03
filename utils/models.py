@@ -39,21 +39,17 @@ def gen_conv_mnist(use_bn=False, h_act=tf.nn.leaky_relu,
 
 def gen_conv_mnist_nn(use_bn=False, h_act=tf.nn.leaky_relu,
                       final_act=tf.nn.sigmoid, channels=1):
-    def upsample2(images):
-        new_size = 2*tf.shape(images)[1:3]
-        return tf.image.resize_nearest_neighbor(images, new_size)
-
     h_act_internal = None if use_bn else h_act
     seq = [layers.Reshape((1, 1, -1)),
-           layers.Lambda(upsample2),
+           layers.Upsampling2D(),
            layers.Conv2D(256, 4, padding="same", activation=h_act_internal),
-           layers.Lambda(upsample2),
+           layers.Upsampling2D(),
            layers.Conv2D(128, 4, padding="same", activation=h_act_internal),
-           layers.Lambda(upsample2),
+           layers.Upsampling2D(),
            layers.Conv2D(64, 4, padding="same", activation=h_act_internal),
-           layers.Lambda(upsample2),
+           layers.Upsampling2D(),
            layers.Conv2D(32, 4, padding="same", activation=h_act_internal),
-           layers.Lambda(upsample2),
+           layers.Upsampling2D(),
            layers.Conv2D(channels, 4, padding="same", activation=final_act),
            ]
     if use_bn:
