@@ -73,13 +73,17 @@ def interpolate(source, target, granularity=20, gen=None, method="linear"):
         imshow(interp)
 
 
-def imshow(img):
+def imshow(img, figsize=(12, 12)):
     """Wrapper for imshow.
 
     Parameters:
         img: Image to plot. Should be values between 0 and 1.
+        figsize: Size of the figure window.
 
     """
+    if figsize:
+        plt.figure(figsize=figsize)
+
     plt.imshow(np.squeeze(img), cmap="Greys_r", vmin=0, vmax=1)
     plt.show()
 
