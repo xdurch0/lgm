@@ -1,9 +1,12 @@
+import hashlib
 import os
 import pickle
+import re
 
 import tensorflow as tf
 import numpy as np
 import scipy.io
+import librosa
 
 
 ################################################################################
@@ -56,7 +59,7 @@ def cifar10_tfr(pickle_path, target_path):
 
     Parameters:
         pickle_path: Path to folder where the pickle files are stored.
-        target_path: BASE path for TFrecords. Will create three files, do not
+        target_path: BASE path for TFrecords. Will create two files, do not
                      give file ending here.
 
     """
@@ -87,7 +90,7 @@ def cifar100_tfr(pickle_path, target_path):
 
     Parameters:
         pickle_path: Path to folder where the pickle files are stored.
-        target_path: BASE path for TFrecords. Will create three files, do not
+        target_path: BASE path for TFrecords. Will create two files, do not
                      give file ending here.
 
     """
@@ -109,6 +112,73 @@ def cifar100_tfr(pickle_path, target_path):
     write_img_label_tfr(target_path + "_test.tfr", test_imgs, test_lbls)
 
 
+def tfsc_tfr(sc_path, target_path):
+    """Build Tensorflow Speech Commands TFRecords.
+
+    Parameters:
+        sc_path: Folder to Speech Commands raw files.
+        target_path: BASE path for TFrecords. Will create three files do not
+                     give file ending here.
+
+    """
+    print("Building Tensorflow Speech Commands TFR...")
+
+    def which_set(filename, validation_percentage, testing_percentage):
+        """Taken from the README."""
+        max_num_wavs_per_class = 2 ** 27 - 1  # ~134M
+        base_name = os.path.basename(filename)
+        hash_name = re.sub(r'_nohash_.*$', '', base_name)
+        hash_name_hashed = hashlib.sha1(hash_name.encode("utf-8")).hexdigest()
+        percentage_hash = ((int(hash_name_hashed, 16) %
+                            (max_num_wavs_per_class + 1)) *
+                           (100.0 / max_num_wavs_per_class))
+        if percentage_hash < validation_percentage:
+            result = 'validation'
+        elif percentage_hash < (testing_percentage + validation_percentage):
+            result = 'testing'
+        else:
+            result = 'training'
+        return result
+
+    exclude = {"_background_noise_"}
+    train_audio = []
+    train_lbls = []
+    test_audio = []
+    test_lbls = []
+    val_audio = []
+    val_lbls = []
+
+    label_ind = -1
+    for folder in os.listdir(sc_path):
+        base = os.path.join(sc_path, folder)
+        if folder in exclude or not os.path.isdir(base):
+            continue
+        print("Doing {}...".format(folder))
+        label_ind += 1
+        for file in os.listdir(base):
+            audio, _ = librosa.load(os.path.join(base, file), sr=None,
+                                    duration=1, dtype=np.float16)
+            if len(audio) < 16000:
+                audio = np.pad(audio, [0, 16000-len(audio)], "constant")
+            dset = which_set(file, 0.1, 0.1)
+            if dset == "training":
+                train_audio.append(audio)
+                train_lbls.append([label_ind])
+            elif dset == "testing":
+                test_audio.append(audio)
+                test_lbls.append([label_ind])
+            else:
+                val_audio.append(audio)
+                val_lbls.append([label_ind])
+
+    write_img_label_tfr(target_path + "_train.tfr", train_audio, train_lbls)
+    write_img_label_tfr(target_path + "_test.tfr", test_audio, test_lbls)
+    write_img_label_tfr(target_path + "_val.tfr", val_audio, val_lbls)
+
+
+################################################################################
+# Generic functions
+################################################################################
 def write_img_label_tfr(target_path, imgs, lbls):
     """Write a simple image/label dataset to TFRecords.
 
@@ -144,14 +214,15 @@ def int64_feature(val):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=val))
 
 
-def parse_img_label_tfr(example_proto, shape, to01=True):
+def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True):
     features = {"img": tf.FixedLenFeature((), tf.string),
                 "lbl": tf.FixedLenFeature((), tf.int64)}
     parsed_features = tf.parse_single_example(example_proto, features)
     parsed_img = tf.reshape(
-        tf.decode_raw(parsed_features["img"], out_type=tf.uint8), shape)
+        tf.decode_raw(parsed_features["img"], out_type=img_dtype), shape)
+    parsed_img = tf.cast(parsed_img, tf.float32)
     if to01:
-        parsed_img = tf.to_float(parsed_img) / 255.
+        parsed_img = parsed_img / 255.
     return parsed_img, tf.cast(parsed_features["lbl"], tf.int32)
 
 
