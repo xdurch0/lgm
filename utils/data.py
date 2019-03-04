@@ -1,12 +1,90 @@
+import gzip
 import hashlib
 import os
 import pickle
 import re
+import shutil
+import tarfile
+import urllib.request
 
 import tensorflow as tf
 import numpy as np
 import scipy.io
 import librosa
+
+
+################################################################################
+# Downloads etc.
+################################################################################
+def download_unpack(url, dest_dir):
+    """Downloads and (if needed) uncompresses the requested URL.
+
+    Parameters:
+        url: Url to download from.
+        dest_dir: Stuff will be downloaded in here.
+
+    """
+    fname = os.path.split(url)[-1]
+    down_dest = os.path.join(dest_dir, fname)
+    if url.endswith(".tar.gz"):
+        dest_name = down_dest[:-7]
+    elif url.endswith(".gz"):
+        dest_name = down_dest[:-3]
+    else:
+        dest_name = down_dest
+
+    if os.path.exists(dest_name):
+        print("Final destination {} already exists. "
+              "Skipping...".format(dest_name))
+        return
+    if not os.path.exists(down_dest):
+        print("Downloading from {}...".format(url))
+        with urllib.request.urlopen(url) as response, open(down_dest, "wb") as out_file:
+            shutil.copyfileobj(response, out_file)
+    else:
+        print("Download destination {} already exists.".format(down_dest))
+
+    print("Unpacking...")
+    if url.endswith(".tar.gz"):
+        with tarfile.open(down_dest, "r") as tar:
+            tar.extractall(dest_dir)
+    elif url.endswith(".gz"):
+        with gzip.open(down_dest, "rb") as f_in:
+            with open(down_dest[:-3], "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+
+def convert_raw_npy(folder):
+    """Convert the amazing original MNIST format to numpy arrays.
+
+    Adapted from http://pjreddie.com/projects/mnist-in-csv/.
+
+    """
+    def one(subset, n_total):
+        img_file = open(os.path.join(folder, subset + "-images-idx3-ubyte"),
+                        "rb")
+        label_file = open(os.path.join(folder, subset + "-labels-idx1-ubyte"),
+                          "rb")
+
+        img_file.read(16)
+        label_file.read(8)
+
+        img_array = np.zeros((n_total, 28 * 28), dtype=np.uint8)
+        label_array = np.zeros(n_total, dtype=np.uint8)
+        for ind_img in range(n_total):
+            label_array[ind_img] = ord(label_file.read(1))
+            for ind_pix in range(28 * 28):
+                img_array[ind_img, ind_pix] = ord(img_file.read(1))
+        img_file.close()
+        label_file.close()
+
+        if subset == "t10k":
+            subset = "test"
+        np.save(os.path.join(folder, subset + "_imgs.npy"), img_array)
+        np.save(os.path.join(folder, subset + "_lbls.npy"), label_array)
+
+    one("train", 60000)
+    one("t10k", 10000)
 
 
 ################################################################################
@@ -22,13 +100,16 @@ def mnist_tfr(array_path, target_path, to32=True):
         to32: If true, pad images to 32x32.
 
     """
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
     print("Building MNIST TFR...")
     for subset in ["train", "test"]:
         print(subset + "...")
         lbls = np.load(os.path.join(
-            array_path, "mnist_" + subset + "_lbls.npy")).astype(np.int32)[:, np.newaxis]
+            array_path, subset + "_lbls.npy")).astype(np.int32)[:, np.newaxis]
         imgs = np.load(os.path.join(
-            array_path, "mnist_" + subset + "_imgs.npy"))
+            array_path, subset + "_imgs.npy"))
         imgs = imgs.reshape((-1, 28, 28, 1))
         if to32:
             imgs = np.pad(imgs, ((0, 0), (2, 2), (2, 2), (0, 0)), "constant")
@@ -44,6 +125,9 @@ def svhn_tfr(mat_path, target_path):
                      give file ending here.
 
     """
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
     print("Building SVHN TFR...")
     for subset in ["train", "extra", "test"]:
         print(subset + "...")
@@ -63,6 +147,9 @@ def cifar10_tfr(pickle_path, target_path):
                      give file ending here.
 
     """
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
     print("Building CIFAR10 TFR...")
 
     def one_batch(batch_name):
@@ -94,6 +181,9 @@ def cifar100_tfr(pickle_path, target_path):
                      give file ending here.
 
     """
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
     print("Building CIFAR100 TFR...")
 
     def one_batch(batch_name):
@@ -121,6 +211,9 @@ def tfsc_tfr(sc_path, target_path):
                      give file ending here.
 
     """
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
     print("Building Tensorflow Speech Commands TFR...")
 
     def which_set(filename, validation_percentage, testing_percentage):
@@ -158,8 +251,8 @@ def tfsc_tfr(sc_path, target_path):
         for file in os.listdir(base):
             audio, _ = librosa.load(os.path.join(base, file), sr=None,
                                     duration=1, dtype=np.float16)
-            if len(audio) < 16000:
-                audio = np.pad(audio, [0, 16000-len(audio)], "constant")
+            if len(audio) < 16384:
+                audio = np.pad(audio, [0, 16384-len(audio)], "constant")
             dset = which_set(file, 0.1, 0.1)
             if dset == "training":
                 train_audio.append(audio)
@@ -184,8 +277,7 @@ def write_img_label_tfr(target_path, imgs, lbls):
 
     Parameters:
         target_path: Path to store the tfrecords file to.
-        imgs: Array of images. We expect this to be uint8 for more compact
-              storage.
+        imgs: Array of images.
         lbls: Array of labels. Should be 2D!! I.e. even if each label just a
               single number (e.g. one-hot index), wrap that as a 1-element
               vector.
@@ -215,6 +307,19 @@ def int64_feature(val):
 
 
 def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True):
+    """Parse function for TFRecords dataset, for data.map().
+
+    Parameters:
+        example_proto: protobuf of single tf.Example.
+        shape: Shape of the "image" entry in the example to reshape to.
+        img_dtype: Dtype of the "image" data.
+        to01: If true, image data will be assumed to be currently stored in
+              [0, 255] and will be rescaled to [0, 1].
+
+    Returns:
+        Tuple of image (reshaped and cast to float32), label.
+
+    """
     features = {"img": tf.FixedLenFeature((), tf.string),
                 "lbl": tf.FixedLenFeature((), tf.int64)}
     parsed_features = tf.parse_single_example(example_proto, features)
@@ -227,6 +332,20 @@ def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True):
 
 
 def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):
+    """Make dataset from TFRecord file(s).
+
+    Parameters:
+        tfr_paths: String or list of strings, paths to TFRecord files.
+        batch_size: Desired batch size.
+        map_func: Function to map records with.
+        shufrep: Int, if given, repeat dataset indefinitely and use this number
+                 as shuffle buffer size. Otherwise (default), dataset is neither
+                 shuffled nor repeated.
+
+    Returns:
+        tf.data.Dataset.
+
+    """
     data = tf.data.TFRecordDataset(tfr_paths)
     if shufrep:
         data = data.apply(tf.data.experimental.shuffle_and_repeat(shufrep))
