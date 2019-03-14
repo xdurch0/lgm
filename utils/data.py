@@ -253,7 +253,7 @@ def tfsc_tfr(sc_path, target_path):
                                     duration=1, dtype=np.float16)
             if len(audio) < 16384:
                 audio = np.pad(audio, [0, 16384-len(audio)], "constant")
-            dset = which_set(file, 0.1, 0.1)
+            dset = which_set(file, 10, 10)
             if dset == "training":
                 train_audio.append(audio)
                 train_lbls.append([label_ind])
@@ -286,7 +286,7 @@ def write_img_label_tfr(target_path, imgs, lbls):
     if os.path.exists(target_path):
         print("File {} exists. Skipping creation...".format(target_path))
         return
-    with tf.python_io.TFRecordWriter(target_path) as writer:
+    with tf.io.TFRecordWriter(target_path) as writer:
         for img, lbl in zip(imgs, lbls):
             tfex = tf.train.Example(features=tf.train.Features(
                 feature={"img": bytes_feature(img.tobytes()),
@@ -320,11 +320,11 @@ def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True):
         Tuple of image (reshaped and cast to float32), label.
 
     """
-    features = {"img": tf.FixedLenFeature((), tf.string),
-                "lbl": tf.FixedLenFeature((), tf.int64)}
-    parsed_features = tf.parse_single_example(example_proto, features)
+    features = {"img": tf.io.FixedLenFeature((), tf.string),
+                "lbl": tf.io.FixedLenFeature((), tf.int64)}
+    parsed_features = tf.io.parse_single_example(example_proto, features)
     parsed_img = tf.reshape(
-        tf.decode_raw(parsed_features["img"], out_type=img_dtype), shape)
+        tf.io.decode_raw(parsed_features["img"], out_type=img_dtype), shape)
     parsed_img = tf.cast(parsed_img, tf.float32)
     if to01:
         parsed_img = parsed_img / 255.

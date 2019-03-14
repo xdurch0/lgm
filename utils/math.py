@@ -32,7 +32,7 @@ def compute_kernel(x, y, sigma_sqr):
     x_broadcast = x[:, tf.newaxis, :]
     y_broadcast = y[tf.newaxis, :, :]
     return tf.exp(
-        -tf.reduce_mean(tf.squared_difference(x_broadcast, y_broadcast),
+        -tf.reduce_mean(tf.math.squared_difference(x_broadcast, y_broadcast),
                         axis=2) / sigma_sqr)
 
 

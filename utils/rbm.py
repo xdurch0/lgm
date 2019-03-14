@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 from utils.math import matvec
 
@@ -45,10 +46,10 @@ def gibbs_update_brbm(prev_sample, w_vh, b_v, b_h):
     v, _ = prev_sample
 
     p_h_v = tf.nn.sigmoid(tf.matmul(v, w_vh) + b_h)
-    sample_h = tf.distributions.Bernoulli(
+    sample_h = tfp.distributions.Bernoulli(
         probs=p_h_v, dtype=tf.float32).sample()
     p_v_h = tf.nn.sigmoid(tf.matmul(sample_h, tf.transpose(w_vh)) + b_v)
-    sample_v = tf.distributions.Bernoulli(
+    sample_v = tfp.distributions.Bernoulli(
         probs=p_v_h, dtype=tf.float32).sample()
 
     return sample_v, sample_h
