@@ -15,7 +15,7 @@ parser.add_argument("datasets",
 args = parser.parse_args()
 sets = set(args.datasets)
 rawdir = os.path.join(args.dir, "raw")
-tfrdir = os.path.join(args.dir, "tfr")
+tfrdir = os.path.join(args.dir, "tfrs")
 
 if not os.path.isdir(rawdir):
     os.makedirs(rawdir)
