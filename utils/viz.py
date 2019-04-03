@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-def random_samples(model, noise_fn, num=10):
+def random_samples(model, noise_fn, num=10, **kwargs):
     """Generate and plot some random samples.
 
     Parameters:
@@ -15,10 +15,11 @@ def random_samples(model, noise_fn, num=10):
     """
     samples = model(noise_fn(num)).numpy()
     for sample in samples:
-        imshow(sample)
+        imshow(sample, **kwargs)
 
 
-def random_sample_grid(model, noise_fn, grid_dims=(7, 7), show=True):
+def random_sample_grid(model, noise_fn, grid_dims=(7, 7), show=True,
+                       **kwargs):
     """Construct a grid of some random samples in a single image.
 
     Parameters:
@@ -40,11 +41,12 @@ def random_sample_grid(model, noise_fn, grid_dims=(7, 7), show=True):
 
     grid = img_grid_npy(samples, grid_dims[0], grid_dims[1], normalize=False)
     if show:
-        imshow(grid)
+        imshow(grid, **kwargs)
     return grid
 
 
-def interpolate(source, target, granularity=20, gen=None, method="linear"):
+def interpolate(source, target, granularity=20, gen=None, method="linear",
+                **kwargs):
     """Interpolate between two images, showing intermediate results.
 
     Parameters:
@@ -70,7 +72,7 @@ def interpolate(source, target, granularity=20, gen=None, method="linear"):
                              "{}".format(method))
         if gen:
             interp = gen(interp[tf.newaxis, :])
-        imshow(interp)
+        imshow(interp, **kwargs)
 
 
 def imshow(img, figsize=(12, 12)):

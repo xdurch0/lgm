@@ -22,7 +22,7 @@ def gen_fc_mnist(use_bn=True, h_act=tf.nn.leaky_relu, final_act=tf.nn.sigmoid,
 
 def gen_conv_mnist(use_bn=True, h_act=tf.nn.leaky_relu,
                    final_act=tf.nn.sigmoid, channels=1):
-    seq = [layers.Reshape((1, 1, -1)),
+    seq = [layers.Lambda(lambda x: x[:, tf.newaxis, tf.newaxis, :]),
            layers.Conv2DTranspose(256, 4, 2, padding="same"),
            layers.Lambda(h_act),
            layers.Conv2DTranspose(128, 4, 2, padding="same"),
@@ -40,7 +40,7 @@ def gen_conv_mnist(use_bn=True, h_act=tf.nn.leaky_relu,
 
 def gen_conv_mnist_nn(use_bn=True, h_act=tf.nn.leaky_relu,
                       final_act=tf.nn.sigmoid, channels=1):
-    seq = [layers.Reshape((1, 1, -1)),
+    seq = [layers.Lambda(lambda x: x[:, tf.newaxis, tf.newaxis, :]),
            layers.UpSampling2D(),
            layers.Conv2D(256, 4, padding="same"),
            layers.Lambda(h_act),
@@ -62,15 +62,12 @@ def gen_conv_mnist_nn(use_bn=True, h_act=tf.nn.leaky_relu,
 
 def enc_fc_mnist(final_dim, use_bn=True, h_act=tf.nn.leaky_relu, clip=None):
     const = (lambda v: tf.clip_by_value(v, -clip, clip)) if clip else None
-    seq = [layers.Reshape((-1,)),
-           layers.Dense(512, kernel_constraint=const,
-                        bias_constraint=const),
+    seq = [layers.Flatten(),
+           layers.Dense(512, kernel_constraint=const, bias_constraint=const),
            layers.Lambda(h_act),
-           layers.Dense(256, kernel_constraint=const,
-                        bias_constraint=const),
+           layers.Dense(256, kernel_constraint=const, bias_constraint=const),
            layers.Lambda(h_act),
-           layers.Dense(128, kernel_constraint=const,
-                        bias_constraint=const),
+           layers.Dense(128, kernel_constraint=const, bias_constraint=const),
            layers.Lambda(h_act),
            layers.Dense(final_dim, kernel_constraint=const,
                         bias_constraint=const)]
@@ -134,7 +131,7 @@ def add_bn(layer_seq, up_to=-1):
 def deserves_batchnorm(layer):
     return (isinstance(layer, layers.Dense) or
             isinstance(layer, layers.Conv2D) or
-            isinstance(layer, layers.Conv2DTranspose),
+            isinstance(layer, layers.Conv2DTranspose) or
             isinstance(layer, layers.Conv1D))
 
 
