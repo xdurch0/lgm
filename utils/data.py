@@ -335,7 +335,7 @@ def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True,
 
 
 def parse_nsynth(example_proto):
-    features = {"audio": tf.io.FixedLenFeature((), tf.float32)}
+    features = {"audio": tf.io.FixedLenFeature((4*16000), tf.float32)}
     parsed_features = tf.io.parse_single_example(example_proto, features)
     return parsed_features["audio"]
 
