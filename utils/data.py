@@ -306,7 +306,8 @@ def int64_feature(val):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=val))
 
 
-def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True):
+def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True,
+                        img_key="img", lbl_key="lbl"):
     """Parse function for TFRecords dataset, for data.map().
 
     Parameters:
@@ -315,20 +316,28 @@ def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True):
         img_dtype: Dtype of the "image" data.
         to01: If true, image data will be assumed to be currently stored in
               [0, 255] and will be rescaled to [0, 1].
+        img_key: Key that holds the "image" entry in the example.
+        lbl_key: Key that holds the "label" entry in the example.
 
     Returns:
         Tuple of image (reshaped and cast to float32), label.
 
     """
-    features = {"img": tf.io.FixedLenFeature((), tf.string),
-                "lbl": tf.io.FixedLenFeature((), tf.int64)}
+    features = {img_key: tf.io.FixedLenFeature((), tf.string),
+                lbl_key: tf.io.FixedLenFeature((), tf.int64)}
     parsed_features = tf.io.parse_single_example(example_proto, features)
     parsed_img = tf.reshape(
-        tf.io.decode_raw(parsed_features["img"], out_type=img_dtype), shape)
+        tf.io.decode_raw(parsed_features[img_key], out_type=img_dtype), shape)
     parsed_img = tf.cast(parsed_img, tf.float32)
     if to01:
         parsed_img = parsed_img / 255.
-    return parsed_img, tf.cast(parsed_features["lbl"], tf.int32)
+    return parsed_img, tf.cast(parsed_features[lbl_key], tf.int32)
+
+
+def parse_nsynth(example_proto):
+    features = {"audio": tf.io.FixedLenFeature((), tf.float32)}
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+    return parsed_features["audio"]
 
 
 def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):
