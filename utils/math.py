@@ -18,8 +18,9 @@ def matvec(mat, vec):
 ################################################################################
 # MMD
 ################################################################################
-def compute_kernel(x, y, sigma_sqr):
+def rbf_kernel(x, y, sigma_sqr):
     """Compute pairwise similarity measure between two batches of vectors.
+
     Parameters:
         x: n x d tensor of floats.
         y: Like x.
@@ -36,27 +37,37 @@ def compute_kernel(x, y, sigma_sqr):
                         axis=2) / sigma_sqr)
 
 
-def compute_mmd(x, y, sigma_sqr=None):
+def imq_kernel(x, y, c):
+    x_broadcast = x[:, tf.newaxis, :]
+    y_broadcast = y[tf.newaxis, :, :]
+    return c / (c + tf.reduce_sum(
+        tf.math.squared_difference(x_broadcast, y_broadcast)))
+
+
+def compute_mmd(x, y, kernel_fn, scales):
     """Compute MMD between two batches of vectors.
+
     Parameters:
         x: n x d tensor of floats.
         y: Like x.
-        sigma_sqr: Variance for the Gaussian kernel. Can be None to choose
-                   default value based on number of dimensions, a scalar, or
-                   a list of scalars to add multiple kernels.
+        kernel_fn: Function that takes two batches of n inputs and computes
+                   an n x n kernel matrix. It should also take a third input
+                   that encodes the scale of the kernel.
+        scales: List of scales for the kernel function. One kernel matrix is
+                computed per entry and the results are added. Alternatively,
+                this can just be a single number.
 
     Returns:
         Scalar MMD value.
 
     """
-    if sigma_sqr is None:
-        sigma_sqr = tf.cast(x.shape.as_list()[1], tf.float32)
-    elif type(sigma_sqr) is float or type(sigma_sqr) is int:
-        sigma_sqr = [sigma_sqr]
+    if isinstance(scales, float) or isinstance(scales, int):
+        scales = [scales]
+
     total = 0
-    for sig in sigma_sqr:
-        x_kernel = compute_kernel(x, x, sig)
-        y_kernel = compute_kernel(y, y, sig)
-        xy_kernel = compute_kernel(x, y, sig)
+    for sc in scales:
+        x_kernel = kernel_fn(x, x, sc)
+        y_kernel = kernel_fn(y, y, sc)
+        xy_kernel = kernel_fn(x, y, sc)
         total += tf.reduce_mean(x_kernel + y_kernel - 2 * xy_kernel)
     return total
