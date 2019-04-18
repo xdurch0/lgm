@@ -2,7 +2,7 @@ import argparse
 import os
 
 from utils.data import (mnist_tfr, svhn_tfr, cifar10_tfr, cifar100_tfr,
-                        tfsc_tfr, download_unpack, convert_raw_npy)
+                        tfsc_tfr, download_unpack, convert_raw_npy, lpd5_tfr)
 
 
 parser = argparse.ArgumentParser("Despite the name, this might take a while.")
@@ -81,3 +81,11 @@ if "S" in sets:
     download_unpack("http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz",
                     scdir)
     tfsc_tfr(scdir, os.path.join(tfrdir, "tfsc"))
+
+if "l" in sets:
+    lpddir = os.path.join(rawdir, "lpd_5")
+    if not os.path.isdir(lpddir):
+        raise ValueError("Downloading LPD-5 is not supported. Please download "
+                         "and unpack it manually into {}/lpd_5.".format(rawdir))
+    lpd5_tfr(lpddir, os.path.join(tfrdir, "lpd5"), beats_per_datum=16,
+             downsample=4)

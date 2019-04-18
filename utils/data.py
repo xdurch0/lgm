@@ -11,6 +11,7 @@ import tensorflow as tf
 import numpy as np
 import scipy.io
 import librosa
+import pypianoroll
 
 
 ################################################################################
@@ -267,6 +268,82 @@ def tfsc_tfr(sc_path, target_path):
     write_img_label_tfr(target_path + "_train.tfr", train_audio, train_lbls)
     write_img_label_tfr(target_path + "_test.tfr", test_audio, test_lbls)
     write_img_label_tfr(target_path + "_val.tfr", val_audio, val_lbls)
+
+
+def lpd5_tfr(lpd_path, target_path, beats_per_datum=20, downsample=1,
+             max_files=None):
+    """
+    Parameters:
+        lpd_path: Path to unpacked LPD directory.
+        target_path: Where to put the TFR (no file extension!).
+        beats_per_datum: How many beats should go into each "example".
+        downsample: By what factor to downsample (beat resolution).
+        max_files: How many files to process.
+
+    """
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
+    print("Building LPD-5 TFR...")
+
+    ind = 0
+    rolls = []
+    min_pitch = 1000
+    max_pitch = 0
+    for path, _, files in os.walk(lpd_path):
+        for file in files:
+            if not file.endswith(".npz"):
+                continue
+            ind += 1
+            song = pypianoroll.Multitrack(os.path.join(path, file))
+            res = song.beat_resolution // downsample
+            for track in song.tracks:
+                if track.is_drum:
+                    if np.size(track.pianoroll) == 0:
+                        continue
+
+                    #tempo = song.tempo
+                    track.binarize()
+                    track.trim_trailing_silence()
+                    track.pad_to_multiple(downsample)
+
+                    # we keep track of which pitches appear and only keep the
+                    # active range
+                    pitches = track.get_active_pitch_range()
+                    if pitches[0] < min_pitch:
+                        min_pitch = pitches[0]
+                    if pitches[1] > max_pitch:
+                        max_pitch = pitches[1]
+
+                    # downsample
+                    roll = track.pianoroll.astype(np.uint8)
+                    roll = np.reshape(roll, (-1, downsample, 128))
+                    roll = np.max(roll, axis=1)
+                    start = 0
+                    while True:
+                        end = start + res*beats_per_datum
+                        if end > len(roll):
+                            break
+                        part_roll = roll[start:end]
+
+                        if np.sum(part_roll) > 5:
+                            # exclude very inactive frames
+                            rolls.append(part_roll)
+                        start = end
+
+                    #multi = pypianoroll.Multitrack(tracks=[track], tempo=tempo,
+                    #                               beat_resolution=24,
+                    #                               downbeat=song.downbeat)
+                    #pypianoroll.write(multi, os.path.join(out, "agg" + str(
+                    #    ind)) + ".midi")
+            if max_files and ind > max_files:
+                break
+
+    print("Min/max pitch:", min_pitch, max_pitch)
+    rolls = np.asarray(rolls)[:, :, min_pitch:(max_pitch+1)]
+    lbl_dummies = np.zeros((len(rolls), 1), dtype=np.int32)
+    write_img_label_tfr(target_path + ".tfr", rolls, lbl_dummies)
+
 
 
 ################################################################################
