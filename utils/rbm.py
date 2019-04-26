@@ -4,7 +4,8 @@ import tensorflow_probability as tfp
 from utils.math import matvec
 
 
-def repeated_gibbs(init_sample, n_iters, gibbs_update_fn, **guf_kwargs):
+def repeated_gibbs(init_sample, n_iters, gibbs_update_fn, return_all=False,
+                   **guf_kwargs):
     """Repeatedly apply Gibbs updates for a given number of iterations.
 
     Parameters:
@@ -14,6 +15,7 @@ def repeated_gibbs(init_sample, n_iters, gibbs_update_fn, **guf_kwargs):
         n_iters: How many Gibbs updates to do.
         gibbs_update_fn: Function that takes a batch of input samples and
                          computes a new one.
+        return_all: If true, return all samples, not just the last one
         guf_kwargs: Keyword arguments passed to gibbs_update_fn.
 
     Returns:
@@ -24,7 +26,25 @@ def repeated_gibbs(init_sample, n_iters, gibbs_update_fn, **guf_kwargs):
 
     def fn(sample, _): return gibbs_update_fn(sample, **guf_kwargs)
 
-    return tf.foldl(fn, iter_dummy, initializer=init_sample, back_prop=False)
+    loop = tf.scan if return_all else tf.foldl
+    return loop(fn, iter_dummy, initializer=init_sample, back_prop=False)
+
+
+def repeated_gibbs_python(init_sample, n_iters, gibbs_update_fn,
+                          return_all=False, **guf_kwargs):
+    """Included for pedagogical reasons. ;)"""
+    if return_all:
+        vis_samps = tf.TensorArray(tf.float32, size=n_iters+1)
+        hid_samps = tf.TensorArray(tf.float32, size=n_iters+1)
+        vis_samps = vis_samps.write(0, init_sample[0])
+        hid_samps = hid_samps.write(0, init_sample[1])
+    sample = init_sample
+    for ind in tf.range(n_iters):
+        sample = gibbs_update_fn(sample, **guf_kwargs)
+        if return_all:
+            vis_samps = vis_samps.write(ind + 1, sample[0])
+            hid_samps = hid_samps.write(ind + 1, sample[1])
+    return (vis_samps.stack(), hid_samps.stack()) if return_all else sample
 
 
 def gibbs_update_brbm(prev_sample, w_vh, b_v, b_h):
