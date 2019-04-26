@@ -340,10 +340,9 @@ def lpd5_tfr(lpd_path, target_path, beats_per_datum=20, downsample=1,
                 break
 
     print("Min/max pitch:", min_pitch, max_pitch)
-    rolls = np.asarray(rolls)[:, :, min_pitch:(max_pitch+1)]
+    rolls = np.asarray(rolls, dtype=np.uint8)[:, :, min_pitch:(max_pitch+1)]
     lbl_dummies = np.zeros((len(rolls), 1), dtype=np.int32)
     write_img_label_tfr(target_path + ".tfr", rolls, lbl_dummies)
-
 
 
 ################################################################################
