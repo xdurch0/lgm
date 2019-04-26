@@ -75,7 +75,7 @@ def interpolate(source, target, granularity=20, gen=None, method="linear",
         imshow(interp, **kwargs)
 
 
-def imshow(img, figsize=(12, 12)):
+def imshow(img, figsize=(12, 12), vmin=0, vmax=1):
     """Wrapper for imshow.
 
     Parameters:
@@ -86,7 +86,7 @@ def imshow(img, figsize=(12, 12)):
     if figsize:
         plt.figure(figsize=figsize)
 
-    plt.imshow(np.squeeze(img), cmap="Greys_r", vmin=0, vmax=1)
+    plt.imshow(np.squeeze(img), cmap="Greys_r", vmin=vmin, vmax=vmax)
     plt.show()
 
 
