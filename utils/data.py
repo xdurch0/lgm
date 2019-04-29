@@ -31,6 +31,8 @@ def download_unpack(url, dest_dir):
         dest_name = down_dest[:-7]
     elif url.endswith(".gz"):
         dest_name = down_dest[:-3]
+    elif url.endswith(".tar"):
+        dest_name = down_dest[:-4]
     else:
         dest_name = down_dest
 
@@ -46,7 +48,7 @@ def download_unpack(url, dest_dir):
         print("Download destination {} already exists.".format(down_dest))
 
     print("Unpacking...")
-    if url.endswith(".tar.gz"):
+    if url.endswith(".tar.gz") or url.endswith(".tar"):
         with tarfile.open(down_dest, "r") as tar:
             tar.extractall(dest_dir)
     elif url.endswith(".gz"):
@@ -345,6 +347,37 @@ def lpd5_tfr(lpd_path, target_path, beats_per_datum=20, downsample=1,
     write_img_label_tfr(target_path + ".tfr", rolls, lbl_dummies)
 
 
+def chair_tfr(chair_path, target_path):
+    if os.path.exists(target_path):
+        print("File {} exists. Skipping creation...".format(target_path))
+        return
+    print("Building Chair TFR...")
+
+    chairs = os.listdir(chair_path)
+    chairs = [ch for ch in chairs if os.path.isdir(os.path.join(chair_path, ch))]
+    chair_map = dict(zip(chairs, range(len(chairs))))
+
+    ele_map = {"p020": 0, "p030": 1}
+    angles = np.floor(np.linspace(0, 360, 31, endpoint=False)).astype(np.int32)
+    str_angles = ["t" + "{:03d}".format(ang) for ang in angles]
+    rot_map = dict(zip(str_angles, range(31)))
+
+    with tf.io.TFRecordWriter(target_path + ".tfr") as writer:
+        for path, _, files in os.walk(chair_path):
+            for file in files:
+                if not file.endswith(".png"):
+                    continue
+                img = open(os.path.join(path, file), "rb").read()
+                chair_id = chair_map[os.path.split(os.path.split(path)[0])[1]]
+                _, _, ele, rot, _ = file.split("_")
+                tfex = tf.train.Example(features=tf.train.Features(
+                    feature={"img": bytes_feature(img),
+                             "id": int64_feature([chair_id]),
+                             "rot": int64_feature([rot_map[rot]]),
+                             "ele": int64_feature([ele_map[ele]])}))
+                writer.write(tfex.SerializeToString())
+
+
 ################################################################################
 # Generic functions
 ################################################################################
@@ -414,6 +447,19 @@ def parse_nsynth(example_proto):
     features = {"audio": tf.io.FixedLenFeature((4*16000), tf.float32)}
     parsed_features = tf.io.parse_single_example(example_proto, features)
     return parsed_features["audio"]
+
+
+def parse_chairs(example_proto, resize=128):
+    features = {"img": tf.io.FixedLenFeature((), tf.string),
+                "id": tf.io.FixedLenFeature((), tf.int64),
+                "rot": tf.io.FixedLenFeature((), tf.int64),
+                "ele": tf.io.FixedLenFeature((), tf.int64)}
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+
+    img = tf.cast(tf.io.decode_png(parsed_features["img"], 3), tf.float32) / 255.
+    if resize:
+        img = tf.image.resize(img, (resize, resize))
+    return img, parsed_features["id"], parsed_features["rot"], parsed_features["ele"]
 
 
 def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):

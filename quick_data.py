@@ -2,7 +2,8 @@ import argparse
 import os
 
 from utils.data import (mnist_tfr, svhn_tfr, cifar10_tfr, cifar100_tfr,
-                        tfsc_tfr, download_unpack, convert_raw_npy, lpd5_tfr)
+                        tfsc_tfr, download_unpack, convert_raw_npy, lpd5_tfr,
+                        chair_tfr)
 
 
 parser = argparse.ArgumentParser("Despite the name, this might take a while.")
@@ -89,3 +90,11 @@ if "l" in sets:
                          "and unpack it manually into {}/lpd_5.".format(rawdir))
     lpd5_tfr(lpddir, os.path.join(tfrdir, "lpd5"), beats_per_datum=16,
              downsample=4)
+
+if "h" in sets:
+    chairdir = os.path.join(rawdir, "rendered_chairs")
+    if not os.path.isdir(chairdir):
+        os.mkdir(chairdir)
+    download_unpack("https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar",
+                    chairdir)
+    chair_tfr(os.path.join(chairdir, "rendered_chairs"), os.path.join(tfrdir, "chairs"))
