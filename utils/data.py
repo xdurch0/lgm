@@ -443,10 +443,19 @@ def parse_img_label_tfr(example_proto, shape, img_dtype=tf.uint8, to01=True,
     return parsed_img, tf.cast(parsed_features[lbl_key], tf.int32)
 
 
-def parse_nsynth(example_proto):
+def parse_nsynth(example_proto, identifiers=False):
     features = {"audio": tf.io.FixedLenFeature((4*16000), tf.float32)}
+    if identifiers:
+        features["instrument"] = tf.io.FixedLenFeature((), tf.int64)
+        features["pitch"] = tf.io.FixedLenFeature((), tf.int64)
+        features["velocity"] = tf.io.FixedLenFeature((), tf.int64)
     parsed_features = tf.io.parse_single_example(example_proto, features)
-    return parsed_features["audio"]
+    if identifiers:
+        returns = (parsed_features["audio"], parsed_features["instrument"],
+                   parsed_features["pitch"], parsed_features["velocity"])
+    else:
+        returns = parsed_features["audio"]
+    return returns
 
 
 def parse_chairs(example_proto, resize=128):
