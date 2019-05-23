@@ -449,10 +449,12 @@ def parse_nsynth(example_proto, identifiers=False):
         features["instrument"] = tf.io.FixedLenFeature((), tf.int64)
         features["pitch"] = tf.io.FixedLenFeature((), tf.int64)
         features["velocity"] = tf.io.FixedLenFeature((), tf.int64)
+        features["instrument_source"] = tf.io.FixedLenFeature((), tf.int64)
     parsed_features = tf.io.parse_single_example(example_proto, features)
     if identifiers:
         returns = (parsed_features["audio"], parsed_features["instrument"],
-                   parsed_features["pitch"], parsed_features["velocity"])
+                   parsed_features["pitch"], parsed_features["velocity"],
+                   parsed_features["instrument_source"])
     else:
         returns = parsed_features["audio"]
     return returns
@@ -471,7 +473,8 @@ def parse_chairs(example_proto, resize=128):
     return img, parsed_features["id"], parsed_features["rot"], parsed_features["ele"]
 
 
-def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):
+def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0, filter=None,
+                      drop_remainder=False):
     """Make dataset from TFRecord file(s).
 
     Parameters:
@@ -481,6 +484,9 @@ def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):
         shufrep: Int, if given, repeat dataset indefinitely and use this number
                  as shuffle buffer size. Otherwise (default), dataset is neither
                  shuffled nor repeated.
+        filter: Optional filter function to apply to the dataset. Default is
+                None, meaning no filtering.
+        drop_remainder: Passed to batch().
 
     Returns:
         tf.data.Dataset.
@@ -489,7 +495,13 @@ def tfr_dataset_eager(tfr_paths, batch_size, map_func, shufrep=0):
     data = tf.data.TFRecordDataset(tfr_paths)
     if shufrep:
         data = data.apply(tf.data.experimental.shuffle_and_repeat(shufrep))
-    data = data.apply(tf.data.experimental.map_and_batch(
-        map_func=map_func, batch_size=batch_size))
+    if filter is not None:
+        data = data.map(map_func)
+        data = data.filter(filter)
+        data = data.batch(batch_size, drop_remainder)
+    else:
+        data = data.apply(tf.data.experimental.map_and_batch(
+            map_func=map_func, batch_size=batch_size,
+            drop_remainder=drop_remainder))
     data = data.prefetch(1)
     return data
