@@ -10,6 +10,7 @@ from tensorflow.keras import backend as K
 from tensorflow.python.util import nest
 from tensorflow.python.ops import array_ops
 from tensorflow.python.framework import tensor_shape
+import numpy as np
 
 
 ################################################################################
@@ -391,7 +392,7 @@ class ResidualBlock(layers.Layer):
 
 
 @register_keras_custom_object
-class LSTMCell(DropoutRNNCellMixin, layers.Layer):
+class PhasedLSTMCell(DropoutRNNCellMixin, layers.Layer):
     """Cell class for the LSTM layer.
     Arguments:
       units: Positive integer, dimensionality of the output space.
@@ -463,7 +464,7 @@ class LSTMCell(DropoutRNNCellMixin, layers.Layer):
                  bias_constraint=None,
                  dropout=0.,
                  recurrent_dropout=0.,
-                 implementation=1,
+                 implementation=2,
                  **kwargs):
         super(LSTMCell, self).__init__(**kwargs)
         self.units = units
@@ -515,6 +516,27 @@ class LSTMCell(DropoutRNNCellMixin, layers.Layer):
             regularizer=self.recurrent_regularizer,
             constraint=self.recurrent_constraint)
 
+        def exp_random_init(shape, dtype):
+            rand = tf.random.uniform(shape, minval=1., maxval=6., dtype=dtype)
+            return tf.exp(rand)
+
+        def another_init(shape, dtype):
+            return tf.random.uniform(shape, minval=0., maxval=1., dtype=dtype)
+
+        self.periods = self.add_weight(
+            shape=[self.units],
+            name="timegate_period",
+            initializer=exp_random_init,
+            constraint=tf.nn.relu)
+        self.phases = self.add_weight(
+            shape=[self.units],
+            name="timegate_phase",
+            initializer=another_init,
+            constraint=None)
+        self.r_open = tf.constant(
+            0.05 * np.ones([self.units], dtype=np.float32))
+        self.leak = 0.001
+
         if self.use_bias:
             if self.unit_forget_bias:
 
@@ -562,6 +584,8 @@ class LSTMCell(DropoutRNNCellMixin, layers.Layer):
         return c, o
 
     def call(self, inputs, states, training=None):
+        inputs, inp_time = inputs
+
         h_tm1 = states[0]  # previous memory state
         c_tm1 = states[1]  # previous carry state
 
@@ -621,6 +645,27 @@ class LSTMCell(DropoutRNNCellMixin, layers.Layer):
             c, o = self._compute_carry_and_output_fused(z, c_tm1)
 
         h = o * self.activation(c)
+
+        # time gate stufffffff
+        # time_gate = 1.  # use this for debugging (always open)
+        # inp_time = 0.
+        # inp_time is just batch. so we reshape to batch x 1
+        # so that then broadcasting can do the rest to make everything
+        # batch x features
+        aux = tf.math.mod(inp_time[:, tf.newaxis] - self.phases,
+                          self.periods) / self.periods
+
+        p1 = tf.cast(tf.less(aux, 0.5 * self.r_open),
+                     tf.float32) * 2 * aux / self.r_open
+        p2 = tf.cast(tf.logical_and(tf.greater_equal(aux, 0.5 * self.r_open),
+                                    tf.less(aux, self.r_open)), tf.float32) * (
+                         2 - 2 * aux / self.r_open)
+        p3 = tf.cast(tf.greater_equal(aux, self.r_open),
+                     tf.float32) * self.leak * aux
+        time_gate = p1 + p2 + p3
+
+        h = time_gate * h + (1 - time_gate) * h_tm1
+        c = time_gate * c + (1 - time_gate) * c_tm1
         return h, [h, c]
 
     def get_config(self):
@@ -660,7 +705,7 @@ class LSTMCell(DropoutRNNCellMixin, layers.Layer):
             'implementation':
                 self.implementation
         }
-        base_config = super(LSTMCell, self).get_config()
+        base_config = super(PhasedLSTMCell, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
@@ -669,25 +714,25 @@ class LSTMCell(DropoutRNNCellMixin, layers.Layer):
 
 
 def _generate_zero_filled_state_for_cell(cell, inputs, batch_size, dtype):
-  if inputs is not None:
-    batch_size = array_ops.shape(inputs)[0]
-    dtype = inputs.dtype
-  return _generate_zero_filled_state(batch_size, cell.state_size, dtype)
+    if inputs is not None:
+        batch_size = array_ops.shape(inputs)[0]
+        dtype = inputs.dtype
+    return _generate_zero_filled_state(batch_size, cell.state_size, dtype)
 
 
 def _generate_zero_filled_state(batch_size_tensor, state_size, dtype):
-  """Generate a zero filled tensor with shape [batch_size, state_size]."""
-  if batch_size_tensor is None or dtype is None:
-    raise ValueError(
-        'batch_size and dtype cannot be None while constructing initial state: '
-        'batch_size={}, dtype={}'.format(batch_size_tensor, dtype))
+    """Generate a zero filled tensor with shape [batch_size, state_size]."""
+    if batch_size_tensor is None or dtype is None:
+        raise ValueError(
+            'batch_size and dtype cannot be None while constructing initial state: '
+            'batch_size={}, dtype={}'.format(batch_size_tensor, dtype))
 
-  def create_zeros(unnested_state_size):
-    flat_dims = tensor_shape.as_shape(unnested_state_size).as_list()
-    init_state_size = [batch_size_tensor] + flat_dims
-    return array_ops.zeros(init_state_size, dtype=dtype)
+    def create_zeros(unnested_state_size):
+        flat_dims = tensor_shape.as_shape(unnested_state_size).as_list()
+        init_state_size = [batch_size_tensor] + flat_dims
+        return array_ops.zeros(init_state_size, dtype=dtype)
 
-  if nest.is_sequence(state_size):
-    return nest.map_structure(create_zeros, state_size)
-  else:
-    return create_zeros(state_size)
+    if nest.is_sequence(state_size):
+        return nest.map_structure(create_zeros, state_size)
+    else:
+        return create_zeros(state_size)
